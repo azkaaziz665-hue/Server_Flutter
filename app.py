@@ -98,7 +98,7 @@ class ScheduleConfigRequest(BaseModel):
     custom_interval_hours: int = 72
     scan_hour: int = Field(default=8, ge=0, le=23)
     scan_minute: int = Field(default=0, ge=0, le=59)
-    min_battery_percent: int = Field(default=20, ge=5, le=90)
+    min_battery_percent: int = Field(default=0, ge=0, le=100)
     pan_steps: int = Field(default=4, ge=2, le=12)
     tilt_steps: int = Field(default=3, ge=1, le=8)
     settle_ms: int = Field(default=800, ge=200, le=3000)
@@ -742,7 +742,7 @@ def get_device_schedule(
             "custom_interval_hours": 72,
             "scan_hour": 8,
             "scan_minute": 0,
-            "min_battery_percent": 20,
+            "min_battery_percent": 0,
             "pan_steps": 4,
             "tilt_steps": 3,
             "settle_ms": 800,
@@ -813,14 +813,7 @@ def device_checkin(
             "sleep_seconds": 3600,
         }
 
-    min_bat = sched.get("min_battery_percent", 20)
-    if battery is not None and battery < min_bat:
-        return {
-            "should_scan": False,
-            "reason": f"Baterai ({battery}%) di bawah batas aman ({min_bat}%)",
-            "sleep_seconds": 3600,
-        }
-
+    # Scanning diizinkan pada berapa pun persentase baterai (tanpa batas minimum)
     next_ts = sched.get("next_run_timestamp", 0)
     now = time.time()
 
