@@ -10,8 +10,11 @@ oleh pengguna.
 import os
 import time
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
+
+# Zona waktu Indonesia Barat (UTC+7)
+WIB = timezone(timedelta(hours=7))
 
 from fastapi import FastAPI, File, Header, HTTPException, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -700,7 +703,7 @@ def get_scan_session_detail(
 # ─────────────────────────────────────────────
 
 def _calc_next_run(sched: dict) -> float:
-    now = datetime.now()
+    now = datetime.now(WIB)
     itype = sched.get("interval_type", "3_days")
     shour = sched.get("scan_hour", 8)
     smin = sched.get("scan_minute", 0)
@@ -749,7 +752,7 @@ def get_device_schedule(
         device_schedules[device_id] = sched
 
     next_ts = sched.get("next_run_timestamp", 0)
-    dt_str = datetime.fromtimestamp(next_ts).strftime("%d/%m/%Y %H:%M WIB") if next_ts > 0 else "-"
+    dt_str = datetime.fromtimestamp(next_ts, tz=WIB).strftime("%d/%m/%Y %H:%M WIB") if next_ts > 0 else "-"
 
     return {
         **sched,
@@ -778,7 +781,7 @@ def update_device_schedule(
     }
     device_schedules[device_id] = saved
 
-    dt_str = datetime.fromtimestamp(next_ts).strftime("%d/%m/%Y %H:%M WIB") if next_ts > 0 else "Nonaktif"
+    dt_str = datetime.fromtimestamp(next_ts, tz=WIB).strftime("%d/%m/%Y %H:%M WIB") if next_ts > 0 else "Nonaktif"
     return {
         "status": "success",
         "message": "Jadwal berhasil diperbarui",
