@@ -45,6 +45,7 @@ latest_timestamp = 0.0
 servo_commands = {}
 device_states = {}
 battery_states: dict[str, dict] = {}
+servo_last_seen: dict[str, float] = {}
 DEVICE_TOKEN = os.environ.get("DEVICE_TOKEN", "")
 
 # ============================================================
@@ -219,8 +220,11 @@ async def upload_frame_legacy(
     if not contents:
         raise HTTPException(status_code=400, detail="Frame kosong")
 
+    now = time.time()
     latest_frame_bytes = contents
-    latest_timestamp = time.time()
+    latest_timestamp = now
+    # Otomatis route ke cam-1 untuk kompatibilitas jika sketch lama upload ke /upload
+    camera_frames["cam-1"] = {"bytes": contents, "timestamp": now}
     return {"status": "ok", "timestamp": latest_timestamp, "bytes": len(contents)}
 
 
@@ -228,11 +232,13 @@ def generate_mjpeg_stream_device(device_id: str):
     """Meneruskan frame JPEG terbaru dari device_id tertentu sebagai MJPEG."""
     while True:
         device_data = camera_frames.get(device_id)
-        if device_data is not None:
+        # Jika belum ada frame per-device, gunakan frame dari legacy /upload jika ada
+        frame_bytes = device_data["bytes"] if device_data is not None else latest_frame_bytes
+        if frame_bytes is not None:
             yield (
                 b"--frame\r\n"
                 b"Content-Type: image/jpeg\r\n\r\n"
-                + device_data["bytes"]
+                + frame_bytes
                 + b"\r\n"
             )
         time.sleep(0.04)
@@ -363,6 +369,7 @@ def get_servo_command(
 ):
     """ESP32 melakukan polling; 204 berarti belum ada perintah baru."""
     verify_device_token(x_device_token)
+    servo_last_seen[device_id] = time.time()
     payload = servo_commands.get(device_id)
     if payload is None or payload["revision"] <= after:
         return Response(status_code=204)
@@ -426,6 +433,8 @@ def get_battery_status(
     verify_device_token(x_device_token)
     payload = battery_states.get(device_id)
     now = time.time()
+    servo_online = (now - servo_last_seen.get(device_id, 0)) < 15
+
     if payload is None:
         state = device_states.get(device_id, {})
         if "battery_percentage" in state or "battery_voltage" in state:
@@ -436,19 +445,19 @@ def get_battery_status(
                 "battery_percentage": int(state.get("battery_percentage", 0)),
                 "raw_adc": state.get("raw_adc"),
                 "updated_at": updated_at,
-                "is_online": (now - updated_at) < 30,
+                "is_online": (now - updated_at) < 30 or servo_online,
             }
         return {
             "device_id": device_id,
             "battery_voltage": 0.0,
             "battery_percentage": 0,
             "raw_adc": None,
-            "updated_at": 0,
-            "is_online": False,
-            "status": "no_data",
+            "updated_at": servo_last_seen.get(device_id, 0),
+            "is_online": servo_online,
+            "status": "connected_servo" if servo_online else "no_data",
         }
 
-    is_online = (now - payload.get("updated_at", 0)) < 30
+    is_online = ((now - payload.get("updated_at", 0)) < 30) or servo_online
     return {**payload, "is_online": is_online}
 
 
