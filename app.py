@@ -1,4 +1,11 @@
+"""CoffeeVision relay untuk ESP32-CAM, ESP32 servo, dan aplikasi Flutter.
 
+Server ini tidak menjalankan inferensi AI dan tidak memuat best.onnx. ESP32-CAM
+mengirim JPEG ke /upload/{device_id}, aplikasi membaca frame dari /stream/{device_id},
+sedangkan model best.tflite pada aplikasi Flutter melakukan deteksi secara lokal
+di ponsel. Setiap perangkat diidentifikasi melalui device_id unik yang diatur
+oleh pengguna.
+"""
 
 import os
 import time
